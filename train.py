@@ -138,7 +138,7 @@ def get_or_build_tokenizer(config,ds,lang):
     return tokenizer
 
 def get_ds(config):
-    ds_raw = load_dataset('opus100',f'{config["lang_src"]}-{config["lang_target"]}',split='train')
+    ds_raw = load_dataset(config["datasource"],f'{config["lang_src"]}-{config["lang_target"]}',split='train')
 
     ## build tokenzier
     tokenizer_src = get_or_build_tokenizer(config,ds_raw,config['lang_src'])
