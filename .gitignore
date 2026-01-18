@@ -8,5 +8,11 @@ wheels/
 
 # Virtual environments
 .venv
-
+notebook/
 uv.lock
+
+docs/
+
+opus_100_weights/
+runs/
+weights/
