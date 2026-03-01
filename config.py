@@ -1,33 +1,57 @@
 from pathlib import Path
 
+
 def get_config():
     return {
-        'batch_size':8,
-        'num_epochs':20,
-        'lr':10**-4,
+        # ------------------------------------------------------------------ #
+        # Data                                                                 #
+        # ------------------------------------------------------------------ #
+        'batch_size': 64,           # per-GPU batch; effective = batch × accum_steps
+        'num_workers': 8,           # DataLoader workers (set 2 on Colab free tier)
         'seq_len': 350,
-        'd_model':512,
-        'lang_src':'en',
-        'datasource':'Helsinki-NLP/opus-100',
-        'lang_target':'ta',
-        'model_dir':'weights',
-        'model_basename':'tmodel_',
-        'preload':None,
-        'tokenizer_file':'tokenizer_{0}.json',
-        'experiment_name':'runs/tmodel'
+        'lang_src': 'en',
+        'lang_target': 'ta',
+        'datasource': 'Helsinki-NLP/opus-100',
+        'tokenizer_file': 'tokenizer_{0}.json',
+
+        # ------------------------------------------------------------------ #
+        # Model architecture                                                   #
+        # ------------------------------------------------------------------ #
+        'd_model': 512,
+        'N': 6,             # encoder/decoder layers  (paper "base" = 6)
+        'h': 8,             # attention heads          (paper "base" = 8)
+        'd_ff': 2048,       # feedforward hidden dim
+        'dropout': 0.1,
+
+        # ------------------------------------------------------------------ #
+        # Training                                                             #
+        # ------------------------------------------------------------------ #
+        'num_epochs': 30,
+        'lr': 1e-4,                         # peak LR after warmup
+        'warmup_steps': 4000,               # linear warmup length
+        'gradient_accumulation_steps': 4,   # effective batch = 64 × 4 = 256
+        'use_amp': True,                    # BF16 on A100/H100, FP16 otherwise
+
+        # ------------------------------------------------------------------ #
+        # Checkpointing / logging                                              #
+        # ------------------------------------------------------------------ #
+        'model_dir': 'weights',
+        'model_basename': 'tmodel_',
+        'preload': None,                    # None | 'latest' | '<epoch_str>'
+        'experiment_name': 'runs/tmodel',
     }
 
-def get_weights_file_path(config,epoch:str):
+
+def get_weights_file_path(config, epoch: str) -> str:
     model_folder = config['model_dir']
-    model_base_filename = config['model_basename']
-    model_filename = f"{model_base_filename}{epoch}.pt"
-    return str(Path('.')/model_folder/model_filename)
+    model_filename = f"{config['model_basename']}{epoch}.pt"
+    return str(Path('.') / model_folder / model_filename)
+
 
 def latest_weights_file_path(config):
     model_folder = config['model_dir']
-    model_filename = f"{config['model_basename']}*"
-    weights_files = list(Path(model_folder).glob(model_filename))
-    if len(weights_files) == 0:
+    weights_files = list(Path(model_folder).glob(f"{config['model_basename']}*.pt"))
+    if not weights_files:
         return None
     weights_files.sort(key=lambda x: int(x.stem.split('_')[-1]))
     return str(weights_files[-1])

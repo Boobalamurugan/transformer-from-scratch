@@ -87,7 +87,11 @@ def load_model(model_path: str, config: dict, tokenizer_src, tokenizer_tgt,
         tokenizer_tgt.get_vocab_size(),
         config["seq_len"],
         config["seq_len"],
-        config["d_model"],
+        d_model=config["d_model"],
+        N=config.get("N", 6),
+        h=config.get("h", 8),
+        dropout=config.get("dropout", 0.1),
+        d_ff=config.get("d_ff", 2048),
     )
 
     state = torch.load(model_path, map_location=device)
