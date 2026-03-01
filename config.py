@@ -24,10 +24,10 @@ def get_weights_file_path(config,epoch:str):
     return str(Path('.')/model_folder/model_filename)
 
 def latest_weights_file_path(config):
-    model_folder = f"{config['datasource']}_{config['model_dir']}"
+    model_folder = config['model_dir']
     model_filename = f"{config['model_basename']}*"
     weights_files = list(Path(model_folder).glob(model_filename))
     if len(weights_files) == 0:
         return None
-    weights_files.sort()
+    weights_files.sort(key=lambda x: int(x.stem.split('_')[-1]))
     return str(weights_files[-1])
