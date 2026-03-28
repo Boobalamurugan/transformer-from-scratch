@@ -361,12 +361,14 @@ def train_model(config, dataset_choice="opus"):
         print('No checkpoint found — starting from scratch.')
 
     # ---- torch.compile (PyTorch 2.0+, skip on Colab if unsupported) --------
-    if hasattr(torch, 'compile'):
+    if hasattr(torch, 'compile') and not config.get('no_compile', False):
         try:
             print("Compiling model with torch.compile() ...")
             model = torch.compile(model)
         except Exception as exc:
             print(f"torch.compile() skipped: {exc}")
+    elif config.get('no_compile', False):
+        print("torch.compile() disabled via flag.")
 
     # ---- Loss --------------------------------------------------------------
     loss_fn = nn.CrossEntropyLoss(
@@ -404,10 +406,8 @@ def train_model(config, dataset_choice="opus"):
                 dtype=amp_dtype,
                 enabled=use_amp,
             ):
-                encoder_op = model.encode(encoder_input, encoder_mask)
-                decoder_op = model.decode(encoder_op, encoder_mask, decoder_input, decoder_mask)
-                logits     = model.projection(decoder_op)
-                loss       = loss_fn(
+                logits = model(encoder_input, encoder_mask, decoder_input, decoder_mask)
+                loss   = loss_fn(
                     logits.view(-1, tokenizer_target.get_vocab_size()),
                     label.view(-1),
                 )
@@ -462,10 +462,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train Transformer from Scratch")
     parser.add_argument('--colab', action='store_true', help='Use settings optimized for Colab Free Tier (T4)')
     parser.add_argument('--prod', action='store_true', help='Use settings optimized for Production Multi-GPU / High-end VMs')
+    parser.add_argument('--no-compile', action='store_true', help='Disable torch.compile() to save initial VRAM')
     parser.add_argument('--dataset', type=str, choices=['opus', 'samanantar', 'both'], default='opus', help='Which dataset to train on (default: opus)')
     args = parser.parse_args()
 
     config = get_config()
+    config['no_compile'] = args.no_compile
 
     if args.colab:
         print(">> applying COLAB optimization settings <<")
@@ -476,9 +478,9 @@ if __name__ == "__main__":
 
     elif args.prod:
         print(">> applying PRODUCTION optimization settings <<")
-        config['batch_size'] = 128                 # Massive batch size for L40S/A100/H100
-        config['gradient_accumulation_steps'] = 2  # Effective batch = 256
+        config['batch_size'] = 32                  # Safe batch size for L40S with manual attention
+        config['gradient_accumulation_steps'] = 8  # Effective batch = 256 (32 * 8)
         config['num_workers'] = 8                  # Max out dataloader queue
-        config['use_amp'] = True                   # Will auto-route to BF16 & TF32 on Ampere/Hopper
+        config['use_amp'] = True                   # BF16 on L40S
     
     train_model(config, args.dataset)

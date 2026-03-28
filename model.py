@@ -247,6 +247,12 @@ class Transformer(nn.Module):
     def projection(self,x):
         return self.projection_layer(x)
     
+    def forward(self, src, src_mask, target, target_mask):
+        """Unified forward pass for training and torch.compile optimization."""
+        encoder_op = self.encode(src, src_mask)
+        decoder_op = self.decode(encoder_op, src_mask, target, target_mask)
+        return self.projection(decoder_op)
+    
 
 def build_transformer(src_vocab_size:int,
                       target_vocab_size:int,
