@@ -127,7 +127,7 @@ class MultiHeadAttentionBlock(nn.Module):
 
         ##  (Batch,h,Seq_len,d_k) --> (Batch,seq_len,h,d_k) --> (Batch,seq_len,d_model)
         x = x.transpose(1, 2).contiguous()
-        x = x.view(x.shape[0], -1, self.h * self.d_k)
+        x = x.reshape(batch_size, query_len, self.h * self.d_k)
 
 
         ## (Batch,seq_len,d_model) --> (Batch,seq_len,d_model)

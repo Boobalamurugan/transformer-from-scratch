@@ -6,7 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 # ---------------------------
 def causal_mask(size):
     """Returns a causal mask for decoder (upper-triangular)."""
-    mask = torch.triu(torch.ones(1, 1, size, size, dtype=torch.bool), diagonal=1)
+    mask = torch.triu(torch.ones(1, size, size, dtype=torch.bool), diagonal=1)
     return ~mask  # True where allowed, False where masked
 
 # ---------------------------
@@ -81,7 +81,7 @@ class BilingualDataset(Dataset):
         pad_id_dec = self.pad_token_tgt.item()
 
         encoder_mask = (encoder_input != pad_id_enc).unsqueeze(0).unsqueeze(0)  # (1,1,seq_len)
-        decoder_mask = (decoder_input != pad_id_dec).unsqueeze(0).unsqueeze(0).unsqueeze(0) & self.causal_mask  # (1,1,1,seq_len) & (1,1,seq_len,seq_len) -> (1,1,seq_len,seq_len)
+        decoder_mask = (decoder_input != pad_id_dec).unsqueeze(0).unsqueeze(0) & self.causal_mask  # (1,1,seq_len) & (1,seq_len,seq_len) -> (1,seq_len,seq_len)
 
         return {
             "encoder_input": encoder_input,
