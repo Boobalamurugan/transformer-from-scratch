@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 from torchmetrics.text import BLEUScore, CharErrorRate, WordErrorRate
 
-from datasets import load_dataset
+from datasets import load_dataset, concatenate_datasets, Features, Value, Translation
 from tokenizers import Tokenizer
 from tokenizers.models import WordLevel
 from tokenizers.trainers import WordLevelTrainer
@@ -139,12 +139,63 @@ def get_or_build_tokenizer(config, ds, lang):
 # Dataset + DataLoader
 # ---------------------------------------------------------------------------
 
-def get_ds(config):
-    ds_raw = load_dataset(
-        config["datasource"],
-        f'{config["lang_src"]}-{config["lang_target"]}',
-        split='train',
-    )
+def get_ds(config, dataset_choice="opus"):
+    features = Features({
+        "id": Value("string"),
+        "translation": Translation(languages=(config["lang_src"], config["lang_target"])),
+    })
+
+    datasets_to_merge = []
+
+    if dataset_choice in ["opus", "both"]:
+        print(">> Loading OPUS-100 dataset...")
+        opus = load_dataset(
+            config["datasource"],
+            f'{config["lang_src"]}-{config["lang_target"]}',
+            split='train',
+        )
+        opus = opus.map(
+            lambda x, idx: {
+                "id": str(idx),
+                "translation": {
+                    config["lang_src"]: x["translation"][config["lang_src"]],
+                    config["lang_target"]: x["translation"][config["lang_target"]],
+                },
+            },
+            with_indices=True,
+            remove_columns=opus.column_names,
+            desc="Normalizing OPUS-100"
+        )
+        opus = opus.cast(features)
+        datasets_to_merge.append(opus)
+
+    if dataset_choice in ["samanantar", "both"]:
+        print(">> Loading ai4bharat/samanantar dataset...")
+        samanantar = load_dataset("ai4bharat/samanantar", config["lang_target"], split="train")
+        samanantar = samanantar.map(
+            lambda x, idx: {
+                "id": str(idx),
+                "translation": {
+                    config["lang_src"]: x["src"],
+                    config["lang_target"]: x["tgt"],
+                },
+            },
+            with_indices=True,
+            remove_columns=samanantar.column_names,
+            desc="Normalizing Samanantar"
+        )
+        samanantar = samanantar.cast(features)
+        datasets_to_merge.append(samanantar)
+
+    if len(datasets_to_merge) == 1:
+        ds_raw = datasets_to_merge[0]
+    else:
+        print(">> Merging multiple datasets...")
+        ds_raw = concatenate_datasets(datasets_to_merge)
+        ds_raw = ds_raw.map(lambda x, idx: {"id": str(idx)}, with_indices=True, desc="Re-indexing")
+        ds_raw = ds_raw.shuffle(seed=42)
+
+    print(f"Total Combined Training Pairs: {len(ds_raw)}")
 
     tokenizer_src    = get_or_build_tokenizer(config, ds_raw, config['lang_src'])
     tokenizer_target = get_or_build_tokenizer(config, ds_raw, config['lang_target'])
@@ -214,7 +265,7 @@ def get_model(config, vocab_src_len, vocab_target_len):
 # Training
 # ---------------------------------------------------------------------------
 
-def train_model(config):
+def train_model(config, dataset_choice="opus"):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device : {device}")
 
@@ -228,7 +279,7 @@ def train_model(config):
 
     Path(config['model_dir']).mkdir(parents=True, exist_ok=True)
 
-    train_dataloader, val_dataloader, tokenizer_src, tokenizer_target = get_ds(config)
+    train_dataloader, val_dataloader, tokenizer_src, tokenizer_target = get_ds(config, dataset_choice)
 
     # ---- Build model -------------------------------------------------------
     model = get_model(
@@ -407,5 +458,27 @@ def train_model(config):
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Train Transformer from Scratch")
+    parser.add_argument('--colab', action='store_true', help='Use settings optimized for Colab Free Tier (T4)')
+    parser.add_argument('--prod', action='store_true', help='Use settings optimized for Production Multi-GPU / High-end VMs')
+    parser.add_argument('--dataset', type=str, choices=['opus', 'samanantar', 'both'], default='opus', help='Which dataset to train on (default: opus)')
+    args = parser.parse_args()
+
     config = get_config()
-    train_model(config)
+
+    if args.colab:
+        print(">> applying COLAB optimization settings <<")
+        config['batch_size'] = 16
+        config['gradient_accumulation_steps'] = 8  # Effective batch = 128
+        config['num_workers'] = 2
+        config['use_amp'] = True                   # Saves VRAM on T4
+
+    elif args.prod:
+        print(">> applying PRODUCTION optimization settings <<")
+        config['batch_size'] = 128                 # Massive batch size for L40S/A100/H100
+        config['gradient_accumulation_steps'] = 2  # Effective batch = 256
+        config['num_workers'] = 8                  # Max out dataloader queue
+        config['use_amp'] = True                   # Will auto-route to BF16 & TF32 on Ampere/Hopper
+    
+    train_model(config, args.dataset)

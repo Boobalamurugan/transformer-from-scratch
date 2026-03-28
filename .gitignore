@@ -16,3 +16,4 @@ docs/
 opus_100_weights/
 runs/
 weights/
+tests/
