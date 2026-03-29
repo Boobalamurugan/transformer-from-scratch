@@ -1,43 +1,42 @@
 from pathlib import Path
 
-
 def get_config():
     return {
         # ------------------------------------------------------------------ #
-        # Data                                                                 #
+        # Data                                                               #
         # ------------------------------------------------------------------ #
-        'batch_size': 64,           # per-GPU batch; effective = batch × accum_steps
-        'num_workers': 8,           # DataLoader workers (set 2 on Colab free tier)
-        'seq_len': 350,
+        'batch_size': 512,          # increased to utilize H100 properly
+        'num_workers': 8,           # increase to 12 if CPU allows
+        'seq_len': 256,
         'lang_src': 'en',
         'lang_target': 'ta',
         'datasource': 'Helsinki-NLP/opus-100',
         'tokenizer_file': 'tokenizer_{0}.json',
 
         # ------------------------------------------------------------------ #
-        # Model architecture                                                   #
+        # Model architecture                                                 #
         # ------------------------------------------------------------------ #
         'd_model': 512,
-        'N': 6,             # encoder/decoder layers  (paper "base" = 6)
-        'h': 8,             # attention heads          (paper "base" = 8)
-        'd_ff': 2048,       # feedforward hidden dim
+        'N': 6,
+        'h': 8,
+        'd_ff': 2048,
         'dropout': 0.1,
 
         # ------------------------------------------------------------------ #
-        # Training                                                             #
+        # Training                                                           #
         # ------------------------------------------------------------------ #
         'num_epochs': 30,
-        'lr': 1e-4,                         # peak LR after warmup
-        'warmup_steps': 4000,               # linear warmup length
-        'gradient_accumulation_steps': 4,   # effective batch = 64 × 4 = 256
-        'use_amp': True,                    # BF16 on A100/H100, FP16 otherwise
+        'lr': 3e-4,                        # scaled for larger batch
+        'warmup_steps': 2000,              # slightly reduced
+        'gradient_accumulation_steps': 1,  # IMPORTANT: remove accumulation
+        'use_amp': True,                   # BF16 on H100
 
         # ------------------------------------------------------------------ #
-        # Checkpointing / logging                                              #
+        # Checkpointing / logging                                            #
         # ------------------------------------------------------------------ #
         'model_dir': 'weights',
         'model_basename': 'tmodel_',
-        'preload': None,                    # None | 'latest' | '<epoch_str>'
+        'preload': None,
         'experiment_name': 'runs/tmodel',
     }
 

@@ -269,6 +269,15 @@ def train_model(config, dataset_choice="opus"):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device : {device}")
 
+    ## print config details like a box in terminal
+    print("\n" + "="*60)
+    print(f"{'Config':^58}")
+    print("="*60)
+    for key, value in config.items():
+        print(f"{key:20} : {value}")
+    print("="*60 + "\n")
+
+
     if torch.cuda.is_available():
         # Enable TF32 on A100/H100 for matmul and cuDNN (free ~10 % speed-up)
         torch.backends.cudnn.benchmark          = True
@@ -478,9 +487,5 @@ if __name__ == "__main__":
 
     elif args.prod:
         print(">> applying PRODUCTION optimization settings <<")
-        config['batch_size'] = 32                  # Safe batch size for L40S with manual attention
-        config['gradient_accumulation_steps'] = 8  # Effective batch = 256 (32 * 8)
-        config['num_workers'] = 8                  # Max out dataloader queue
-        config['use_amp'] = True                   # BF16 on L40S
-    
+
     train_model(config, args.dataset)
