@@ -262,6 +262,34 @@ def get_model(config, vocab_src_len, vocab_target_len):
 
 
 # ---------------------------------------------------------------------------
+# Checkpoint Pruning
+# ---------------------------------------------------------------------------
+
+def prune_checkpoints(config):
+    model_folder = config['model_dir']
+    model_basename = config['model_basename']
+    keep_last_n = config.get('keep_last_n_checkpoints', 3)
+
+    checkpoint_files = list(Path(model_folder).glob(f"{model_basename}*.pt"))
+    if len(checkpoint_files) <= keep_last_n:
+        return
+
+    def get_epoch(path):
+        try:
+            return int(path.stem.split('_')[-1])
+        except (IndexError, ValueError):
+            return -1
+
+    checkpoint_files.sort(key=get_epoch)
+
+    files_to_delete = checkpoint_files[:-keep_last_n]
+    for f in files_to_delete:
+        if f.exists():
+            print(f"Pruning old checkpoint: {f}")
+            f.unlink()
+
+
+# ---------------------------------------------------------------------------
 # Training
 # ---------------------------------------------------------------------------
 
@@ -464,6 +492,9 @@ def train_model(config, dataset_choice="opus"):
             'scaler_state_dict':    scaler.state_dict(),
             'global_step':          global_step,
         }, get_weights_file_path(config, str(epoch)))
+
+        # Prune old checkpoints to save disk space
+        prune_checkpoints(config)
 
 
 if __name__ == "__main__":

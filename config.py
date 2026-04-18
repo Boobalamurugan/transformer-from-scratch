@@ -5,7 +5,7 @@ def get_config():
         # ------------------------------------------------------------------ #
         # Data                                                               #
         # ------------------------------------------------------------------ #
-        'batch_size': 512,          # increased to utilize H100 properly
+        'batch_size': 256,          # increased to utilize H100 properly
         'num_workers': 8,           # increase to 12 if CPU allows
         'seq_len': 256,
         'lang_src': 'en',
@@ -38,6 +38,7 @@ def get_config():
         'model_basename': 'tmodel_',
         'preload': None,
         'experiment_name': 'runs/tmodel',
+        'keep_last_n_checkpoints': 3,
     }
 
 
